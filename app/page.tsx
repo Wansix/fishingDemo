@@ -31,8 +31,8 @@ export default function Home() {
   const [autoRebalanceEnabled, setAutoRebalanceEnabled] = useState(false); // 자동 리밸런싱 설정
   const [isRebalanceToastOpen, setIsRebalanceToastOpen] = useState(false); // 리밸런싱 토스트 상태
   const [currentRebalanceToast, setCurrentRebalanceToast] = useState<HTMLElement | null>(null); // 현재 리밸런싱 토스트 요소
-  const [simulationSpeed, setSimulationSpeed] = useState(1); // 시뮬레이션 속도 배수 (1 = 기본, 2 = 2배속, 0.5 = 반속도)
   const [hasStartedBefore, setHasStartedBefore] = useState(false); // 이전에 데모를 시작한 적이 있는지
+  const [currentTimeUnit, setCurrentTimeUnit] = useState('10분'); // 현재 시간 단위
 
   useEffect(() => {
     const unsubscribe = simulator.subscribe((newState) => {
@@ -73,8 +73,8 @@ export default function Home() {
   }, [autoRebalanceEnabled, simulator]);
 
   useEffect(() => {
-    simulator.setSimulationSpeed(simulationSpeed);
-  }, [simulationSpeed, simulator]);
+    simulator.setTimeUnit(currentTimeUnit);
+  }, [currentTimeUnit, simulator]);
 
   // 범위 안으로 다시 들어오면 리밸런싱 토스트 자동 닫기
   useEffect(() => {
@@ -340,6 +340,11 @@ export default function Home() {
   const handleSelectApr = (apr: number) => {
     setSelectedApr(apr);
     showToast(`APR ${apr}%가 선택되었습니다!`);
+  };
+
+  const handleTimeUnitChange = (unit: string) => {
+    setCurrentTimeUnit(unit);
+    showToast(`시간 단위가 1초 = ${unit}로 설정되었습니다!`);
   };
 
   const handleStartDemo = () => {
@@ -703,8 +708,8 @@ export default function Home() {
             >
               <TimeWidget 
                 isRunning={isDemoActive} 
-                simulationSpeed={simulationSpeed}
-                onSpeedChange={setSimulationSpeed}
+                timeUnit={currentTimeUnit}
+                onTimeUnitChange={handleTimeUnitChange}
               />
             </div>
             

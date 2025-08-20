@@ -45,8 +45,12 @@ export class PriceSimulator {
   private autoRebalanceEnabled = false;
   private onOutOfRangeCallback: (() => void) | null = null;
   
-  // 시뮬레이션 속도 설정
-  private simulationSpeed = 1; // 기본 속도 (1초 = 10분)
+  // 시뮬레이션 시간 단위 설정
+  private timeUnit = '10분'; // 기본: 1초 = 10분
+  
+  // 디버깅용 카운터
+  private rangeCheckCounter = 0;
+  private inRangeCounter = 0;
 
   constructor() {
     this.state = {
@@ -142,18 +146,61 @@ export class PriceSimulator {
     const now = Date.now();
     const currentlyInRange = this.isInRange();
     
+    // 디버깅용: 범위 안/밖 비율 체크
+    if (!this.rangeCheckCounter) this.rangeCheckCounter = 0;
+    if (!this.inRangeCounter) this.inRangeCounter = 0;
+    this.rangeCheckCounter++;
+    if (currentlyInRange) this.inRangeCounter++;
+    
+    if (this.rangeCheckCounter % 1000 === 0) {
+      const inRangePercent = (this.inRangeCounter / this.rangeCheckCounter * 100).toFixed(1);
+      console.log(`Range check: ${inRangePercent}% in range (${this.inRangeCounter}/${this.rangeCheckCounter})`);
+    }
+    
     if (currentlyInRange && this.depositAmount > 0) {
+      console.log('=== 범위 안에서 수익 누적 중 ===');
       // Calculate profit based on APR and deposit amount
-      // Daily profit = (deposit * APR) / 365
-      // Per 100ms profit in simulation = (daily profit / 1440) * (10/60) 
-      // Because 1 second = 10 minutes, so 100ms = 1 minute in simulation
-      const dailyProfit = (this.depositAmount * this.aprRate) / 365;
-      const profitPer100ms = (dailyProfit / 1440); // 1440 minutes in a day
+      // 시뮬레이션 속도에 따른 정확한 연이율 계산:
+      // - 연이율 100% = 1년에 예치금만큼 이자
+      // - 1년 = 365일
+      // - 1일 수익 = 연간수익 / 365
+      // - 시뮬레이션에서: 기본 10분 단위 × simulationSpeed 배수
+      // - 실제 시간 100ms = 시뮬레이션 시간 (10분 × simulationSpeed)
       
-      // 시뮬레이션 속도만 반영 (현실적인 수익률)
-      const adjustedProfitPer100ms = profitPer100ms * this.simulationSpeed;
+      const yearlyProfit = this.depositAmount * this.aprRate; // 연간 수익
+      const dailyProfit = yearlyProfit / 365; // 일일 수익
       
-      this.state.accumulatedProfit += adjustedProfitPer100ms;
+      // 간단한 수익 계산: 시간 단위에 따른 1초당 수익
+      const getDaysPerSecond = () => {
+        switch(this.timeUnit) {
+          case '10분': return 10 / (24 * 60); // 1초 = 10분 = 10/1440일
+          case '1시간': return 1 / 24; // 1초 = 1시간 = 1/24일
+          case '1일': return 1; // 1초 = 1일
+          case '7일': return 7; // 1초 = 7일
+          default: return 10 / (24 * 60);
+        }
+      };
+      
+      const daysPerSecond = getDaysPerSecond();
+      const profitPerSecond = dailyProfit * daysPerSecond; // 1초당 수익
+      const profitPer100ms = profitPerSecond / 10; // 100ms당 수익 (1초의 1/10)
+            
+      // 정확한 수치 확인을 위한 로그 (시뮬레이션 시간 기준)
+      if (this.state.accumulatedProfit > 0 && this.state.accumulatedProfit < 1) {
+        console.log(`=== 수익 계산 상세 ===`);
+        console.log(`예치금: $${this.depositAmount}, APR: ${this.aprRate * 100}%`);
+        console.log(`연간 수익: $${yearlyProfit.toFixed(2)}`);
+        console.log(`일일 수익: $${dailyProfit.toFixed(6)}`);
+        console.log(`시간 단위: 1초 = ${this.timeUnit}`);
+        console.log(`1초당 시뮬레이션 일수: ${daysPerSecond}일`);
+        console.log(`1초당 수익: $${profitPerSecond.toFixed(6)}`);
+        console.log(`100ms당 수익: $${profitPer100ms.toFixed(8)}`);
+        console.log(`현재 누적 수익: $${this.state.accumulatedProfit.toFixed(6)}`);
+        console.log(`==================`);
+      }
+      
+      // 시뮬레이션 시간에 맞춘 수익 적용
+      this.state.accumulatedProfit += profitPer100ms;
       
       // $5 단위로 수확 가능한 수익을 누적 수익에 추가
       this.updateHarvestableProfit();
@@ -426,14 +473,14 @@ export class PriceSimulator {
     this.onOutOfRangeCallback = callback;
   }
 
-  // 시뮬레이션 속도 설정 메서드
-  setSimulationSpeed(speed: number) {
-    this.simulationSpeed = speed;
-    console.log(`Simulation speed set to ${speed}x`);
+  // 시뮬레이션 시간 단위 설정 메서드
+  setTimeUnit(unit: string) {
+    this.timeUnit = unit;
+    console.log(`Time unit set to: 1초 = ${unit}`);
   }
 
-  getSimulationSpeed(): number {
-    return this.simulationSpeed;
+  getTimeUnit(): string {
+    return this.timeUnit;
   }
 
 

@@ -7,91 +7,65 @@ import { Clock, FastForward, Rewind } from 'lucide-react';
 interface TimeWidgetProps {
   className?: string;
   isRunning?: boolean;
-  simulationSpeed?: number;
-  onSpeedChange?: (speed: number) => void;
+  timeUnit?: string;
+  onTimeUnitChange?: (unit: string) => void; // 시간 단위 변경
   shouldReset?: boolean; // 명시적으로 리셋해야 할 때
 }
 
-export default function TimeWidget({ className = '', isRunning = false, simulationSpeed = 1, onSpeedChange, shouldReset = false }: TimeWidgetProps) {
+export default function TimeWidget({ className = '', isRunning = false, timeUnit = '10분', onTimeUnitChange, shouldReset = false }: TimeWidgetProps) {
   const [totalMinutes, setTotalMinutes] = useState(0);
-  const [startTime, setStartTime] = useState<number | null>(null);
-  const [accumulatedMinutes, setAccumulatedMinutes] = useState(0);
-  const [lastSpeedChangeTime, setLastSpeedChangeTime] = useState<number | null>(null);
-  const [previousSpeed, setPreviousSpeed] = useState(simulationSpeed);
-  const [pausedTime, setPausedTime] = useState<number | null>(null);
+  const [baseTime, setBaseTime] = useState<number | null>(null); // 시뮬레이션 시작 기준점
+  const [pausedMinutes, setPausedMinutes] = useState(0); // 일시정지된 누적 시간
+
+  // 시간 단위별 분당 변환
+  const getMinutesPerSecond = () => {
+    switch(timeUnit) {
+      case '10분': return 10;
+      case '1시간': return 60;
+      case '1일': return 24 * 60; // 1440분
+      case '7일': return 7 * 24 * 60; // 10080분
+      default: return 10;
+    }
+  };
 
   useEffect(() => {
     if (!isRunning) {
-      // 데모가 중지되면 현재 시점을 일시정지 시점으로 저장
-      if (startTime !== null && pausedTime === null) {
+      // 데모가 중지되면 현재까지의 시간을 저장
+      if (baseTime !== null) {
         const now = Date.now();
-        const lastChangeTime = lastSpeedChangeTime || startTime;
-        const realElapsed = now - lastChangeTime;
-        const minutesToAdd = Math.floor((realElapsed / 1000) * 10 * simulationSpeed);
-        
-        setAccumulatedMinutes(prev => prev + minutesToAdd);
-        setPausedTime(now);
+        const realElapsed = now - baseTime;
+        const currentMinutes = Math.floor((realElapsed / 1000) * getMinutesPerSecond());
+        setPausedMinutes(pausedMinutes + currentMinutes);
+        setBaseTime(null);
       }
       return;
     }
 
-    // 일시정지에서 재개할 때
-    if (pausedTime !== null) {
-      const now = Date.now();
-      setLastSpeedChangeTime(now);
-      setPausedTime(null);
-      return;
-    }
-
-    // 처음 시작할 때만 startTime 설정
-    if (startTime === null) {
-      const now = Date.now();
-      setStartTime(now);
-      setLastSpeedChangeTime(now);
+    // 데모가 시작/재개될 때
+    if (baseTime === null) {
+      setBaseTime(Date.now());
       return;
     }
 
     const interval = setInterval(() => {
       const now = Date.now();
-      let currentAccumulated = accumulatedMinutes;
-      let currentStartTime = lastSpeedChangeTime || startTime;
+      const realElapsed = now - baseTime;
+      const currentMinutes = Math.floor((realElapsed / 1000) * getMinutesPerSecond());
       
-      // 현재 속도로 경과된 시간 계산
-      const realElapsed = now - currentStartTime;
-      const currentSpeedMinutes = Math.floor((realElapsed / 1000) * 10 * simulationSpeed);
-      
-      setTotalMinutes(currentAccumulated + currentSpeedMinutes);
-    }, 100); // Update every 100ms for smooth animation
+      setTotalMinutes(pausedMinutes + currentMinutes);
+    }, 100);
 
     return () => clearInterval(interval);
-  }, [isRunning, startTime, accumulatedMinutes, lastSpeedChangeTime, simulationSpeed]);
+  }, [isRunning, baseTime, pausedMinutes, timeUnit]);
 
-  // 속도가 변경될 때 누적 시간 업데이트
+     // 명시적 리셋이 요청될 때
   useEffect(() => {
-    if (isRunning && startTime !== null && simulationSpeed !== previousSpeed) {
-      const now = Date.now();
-      const lastChangeTime = lastSpeedChangeTime || startTime;
-      
-      // 이전 속도로 경과된 시간 계산
-      const realElapsed = now - lastChangeTime;
-      const minutesToAdd = Math.floor((realElapsed / 1000) * 10 * previousSpeed);
-      
-      setAccumulatedMinutes(prev => prev + minutesToAdd);
-      setLastSpeedChangeTime(now);
-      setPreviousSpeed(simulationSpeed);
-         }
-   }, [simulationSpeed, isRunning, startTime, lastSpeedChangeTime, previousSpeed]);
-
-   // 명시적 리셋이 요청될 때
-   useEffect(() => {
-     if (shouldReset) {
-       setTotalMinutes(0);
-       setStartTime(null);
-       setAccumulatedMinutes(0);
-       setLastSpeedChangeTime(null);
-       setPausedTime(null);
-     }
-   }, [shouldReset]);
+    if (shouldReset) {
+      setTotalMinutes(0);
+      setBaseTime(null);
+      setPausedMinutes(0);
+    }
+  }, [shouldReset]);
 
   const formatDay = () => {
     return Math.floor(totalMinutes / (24 * 60));
@@ -179,49 +153,73 @@ export default function TimeWidget({ className = '', isRunning = false, simulati
         </div>
       </div>
       
-      <div className="flex items-center justify-between">
-        <div className="text-center flex-1">
+      <div className="flex items-center justify-center">
+        <div className="text-center">
           <span className="text-xs text-slate-500">
-            실시간 1초 = {10 * simulationSpeed}분
+            실시간 1초 = {timeUnit}
           </span>
         </div>
-        
-        {onSpeedChange && (
-          <div className="flex items-center space-x-2 ml-4">
+      </div>
+      
+      {/* Time Unit Buttons */}
+      {onTimeUnitChange && (
+        <div className="mt-4 pt-4 border-t border-slate-700">
+          <div className="text-xs text-slate-500 mb-2 text-center">시간 단위 설정</div>
+          <div className="grid grid-cols-4 gap-2">
             <motion.button
-              onClick={() => onSpeedChange(Math.max(0.5, simulationSpeed / 2))}
-              className="p-1 rounded-lg bg-slate-700 hover:bg-slate-600 text-slate-300 hover:text-white transition-colors"
-              whileHover={{ scale: 1.1 }}
-              whileTap={{ scale: 0.9 }}
-              disabled={simulationSpeed <= 0.5}
-              style={{
-                opacity: simulationSpeed <= 0.5 ? 0.5 : 1,
-                cursor: simulationSpeed <= 0.5 ? 'not-allowed' : 'pointer'
-              }}
+              onClick={() => onTimeUnitChange('10분')}
+              className={`px-2 py-1 rounded-lg transition-colors text-xs ${
+                timeUnit === '10분' 
+                  ? 'bg-blue-600 text-white' 
+                  : 'bg-slate-700 hover:bg-slate-600 text-slate-300 hover:text-white'
+              }`}
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.95 }}
             >
-              <Rewind className="w-3 h-3" />
+              10분
             </motion.button>
             
-            <span className="text-xs text-slate-400 min-w-[24px] text-center">
-              x{simulationSpeed}
-            </span>
+            <motion.button
+              onClick={() => onTimeUnitChange('1시간')}
+              className={`px-2 py-1 rounded-lg transition-colors text-xs ${
+                timeUnit === '1시간' 
+                  ? 'bg-blue-600 text-white' 
+                  : 'bg-slate-700 hover:bg-slate-600 text-slate-300 hover:text-white'
+              }`}
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.95 }}
+            >
+              1시간
+            </motion.button>
             
             <motion.button
-              onClick={() => onSpeedChange(Math.min(512, simulationSpeed * 2))}
-              className="p-1 rounded-lg bg-slate-700 hover:bg-slate-600 text-slate-300 hover:text-white transition-colors"
-              whileHover={{ scale: 1.1 }}
-              whileTap={{ scale: 0.9 }}
-              disabled={simulationSpeed >= 512}
-              style={{
-                opacity: simulationSpeed >= 512 ? 0.5 : 1,
-                cursor: simulationSpeed >= 512 ? 'not-allowed' : 'pointer'
-              }}
+              onClick={() => onTimeUnitChange('1일')}
+              className={`px-2 py-1 rounded-lg transition-colors text-xs ${
+                timeUnit === '1일' 
+                  ? 'bg-blue-600 text-white' 
+                  : 'bg-slate-700 hover:bg-slate-600 text-slate-300 hover:text-white'
+              }`}
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.95 }}
             >
-              <FastForward className="w-3 h-3" />
+              1일
+            </motion.button>
+            
+            <motion.button
+              onClick={() => onTimeUnitChange('7일')}
+              className={`px-2 py-1 rounded-lg transition-colors text-xs ${
+                timeUnit === '7일' 
+                  ? 'bg-blue-600 text-white' 
+                  : 'bg-slate-700 hover:bg-slate-600 text-slate-300 hover:text-white'
+              }`}
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.95 }}
+            >
+              7일
             </motion.button>
           </div>
-        )}
-      </div>
+        </div>
+      )}
     </motion.div>
   );
 }
