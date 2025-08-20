@@ -21,7 +21,7 @@ export default function Home() {
   const [simulator] = useState(() => new PriceSimulator());
   const [simState, setSimState] = useState<PriceSimState>(simulator.getState());
   const [selectedChallenge, setSelectedChallenge] = useState<'coffee' | 'meal' | null>(null);
-  const [selectedApr, setSelectedApr] = useState<number>(100);
+  const [selectedApr, setSelectedApr] = useState<number>(200);
   const [isRecastDialogOpen, setIsRecastDialogOpen] = useState(false);
   const [alertsEnabled, setAlertsEnabled] = useState(false);
   const [alertAmount, setAlertAmount] = useState(5); // 알림 금액 설정 (기본 $5)
@@ -31,6 +31,9 @@ export default function Home() {
   const [lastAlertAmount, setLastAlertAmount] = useState(0); // 마지막으로 알림을 보낸 금액
   const [autoRebalanceEnabled, setAutoRebalanceEnabled] = useState(false); // 자동 리밸런싱 설정
   const [compoundingEnabled, setCompoundingEnabled] = useState(false); // 복리 재투자 설정
+  const [managementFeeRate, setManagementFeeRate] = useState(20); // 운영진 수수료율 (기본 20%)
+  const [userCount, setUserCount] = useState(100); // 유저 수 (기본 100명)
+  const [managementRevenue, setManagementRevenue] = useState(0); // 운영진 누적 수익
   const [isRebalanceToastOpen, setIsRebalanceToastOpen] = useState(false); // 리밸런싱 토스트 상태
   const [currentRebalanceToast, setCurrentRebalanceToast] = useState<HTMLElement | null>(null); // 현재 리밸런싱 토스트 요소
   const [isHarvestToastOpen, setIsHarvestToastOpen] = useState(false); // 수확 알림 토스트 상태
@@ -234,13 +237,20 @@ export default function Home() {
     yesButton?.addEventListener('click', () => {
       const harvestAmount = simulator.harvestHarvestable();
       if (harvestAmount > 0) {
+        // 운영진 수수료 계산
+        const managementFee = harvestAmount * (managementFeeRate / 100);
+        const userReceives = harvestAmount - managementFee;
+        
+        // 운영진 수익 누적
+        setManagementRevenue(prev => prev + managementFee);
+        
         if (compoundingEnabled) {
-          // 복리 재투자: 수확한 금액을 예치금에 추가
-          const newDepositAmount = simulator.getDepositAmount() + harvestAmount;
-          simulator.addToDeposit(harvestAmount);
-          showToast(`🔄 복리 재투자! $${harvestAmount.toFixed(2)}가 예치금에 추가되었습니다. 새로운 예치금: $${newDepositAmount.toFixed(2)}`);
+          // 복리 재투자: 사용자가 받는 금액(수수료 제외)을 예치금에 추가
+          simulator.addToDeposit(userReceives);
+          const newDepositAmount = simulator.getDepositAmount();
+          showToast(`🔄 복리 재투자! $${userReceives.toFixed(2)}가 예치금에 추가되었습니다. (수수료 $${managementFee.toFixed(2)} 차감)`);
         } else {
-          showToast(`☕ 수확 완료! $${harvestAmount.toFixed(2)}를 획득했습니다.`);
+          showToast(`☕ 수확 완료! $${userReceives.toFixed(2)}를 획득했습니다. (수수료 $${managementFee.toFixed(2)} 차감)`);
         }
         setLastAlertAmount(0); // 수확 후 알림 카운터 리셋
       }
@@ -366,21 +376,30 @@ export default function Home() {
     console.log('harvestAmount:', harvestAmount);
     
     if (harvestAmount > 0) {
+      // 운영진 수수료 계산
+      const managementFee = harvestAmount * (managementFeeRate / 100);
+      const userReceives = harvestAmount - managementFee;
+      
+      console.log(`💰 수수료 계산: 총 ${harvestAmount.toFixed(2)}, 수수료 ${managementFee.toFixed(2)} (${managementFeeRate}%), 사용자 수령 ${userReceives.toFixed(2)}`);
+      
+      // 운영진 수익 누적
+      setManagementRevenue(prev => prev + managementFee);
+      
       if (compoundingEnabled) {
         console.log('🔄 복리 재투자 실행 중...');
-        // 복리 재투자: 수확한 금액을 예치금에 추가
+        // 복리 재투자: 사용자가 받는 금액(수수료 제외)을 예치금에 추가
         const oldDepositAmount = simulator.getDepositAmount();
         console.log('기존 예치금:', oldDepositAmount);
         
-        simulator.addToDeposit(harvestAmount);
+        simulator.addToDeposit(userReceives);
         
         const newDepositAmount = simulator.getDepositAmount();
         console.log('새로운 예치금:', newDepositAmount);
         
-        showToast(`🔄 복리 재투자! $${harvestAmount.toFixed(2)}가 예치금에 추가되었습니다. 새로운 예치금: $${newDepositAmount.toFixed(2)}`);
+        showToast(`🔄 복리 재투자! $${userReceives.toFixed(2)}가 예치금에 추가되었습니다. (수수료 $${managementFee.toFixed(2)} 차감) 새로운 예치금: $${newDepositAmount.toFixed(2)}`);
       } else {
         console.log('☕ 일반 수확 실행 중...');
-        showToast(`☕ 수확 완료! $${harvestAmount.toFixed(2)}를 획득했습니다.`);
+        showToast(`☕ 수확 완료! $${userReceives.toFixed(2)}를 획득했습니다. (운영진 수수료 $${managementFee.toFixed(2)} 차감)`);
       }
       setLastAlertAmount(0); // 수확 후 알림 카운터 리셋
     } else {
@@ -551,6 +570,134 @@ export default function Home() {
         selectedChallenge={selectedChallenge}
       />
 
+      {/* Management Settings */}
+      <section className="py-20 bg-slate-800/50">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="text-center mb-16">
+            <motion.h2
+              className="text-4xl md:text-5xl font-bold text-white mb-6"
+              initial={{ opacity: 0, y: 20 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.8 }}
+              viewport={{ once: true }}
+            >
+              🏛️ 운영진 설정
+            </motion.h2>
+            <motion.p
+              className="text-xl text-slate-300 max-w-2xl mx-auto"
+              initial={{ opacity: 0, y: 20 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.8, delay: 0.2 }}
+              viewport={{ once: true }}
+            >
+              플랫폼 운영진의 수수료와 사용자 규모를 설정하세요
+            </motion.p>
+          </div>
+
+          <div className="grid grid-cols-2 gap-4 max-w-6xl mx-auto">
+            {/* Management Fee Rate Card */}
+            <motion.div
+              className="group relative overflow-hidden rounded-3xl border-2 border-orange-500/20 bg-gradient-to-br from-orange-900/20 to-orange-800/30 p-8 transition-all duration-300 hover:border-orange-400/40 hover:shadow-2xl hover:shadow-orange-500/20 cursor-pointer"
+              initial={{ opacity: 0, x: -20 }}
+              whileInView={{ opacity: 1, x: 0 }}
+              transition={{ duration: 0.6 }}
+              viewport={{ once: true }}
+              whileHover={{ scale: 1.02 }}
+            >
+              <div className="absolute inset-0 bg-gradient-to-br from-orange-500/5 to-orange-600/10 opacity-0 transition-opacity duration-300 group-hover:opacity-100" />
+              
+              <div className="relative z-10">
+                <div className="flex items-center space-x-4 mb-6">
+                  <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-orange-500/20 text-3xl group-hover:scale-110 transition-transform duration-300">
+                    💰
+                  </div>
+                  <div>
+                    <h3 className="text-2xl font-bold text-white mb-2">수수료율</h3>
+                    <p className="text-orange-200/80">수확 시 차감되는 운영진 수수료</p>
+                  </div>
+                </div>
+                
+                <div className="space-y-6">
+                  <div className="flex items-center justify-between">
+                    <span className="text-orange-200">현재 수수료율</span>
+                    <span className="text-4xl font-bold text-orange-400">{managementFeeRate}%</span>
+                  </div>
+                  
+                  <div className="space-y-3">
+                    <input
+                      type="range"
+                      min="0"
+                      max="50"
+                      value={managementFeeRate}
+                      onChange={(e) => setManagementFeeRate(parseInt(e.target.value))}
+                      className="w-full h-3 rounded-lg appearance-none cursor-pointer slider"
+                      style={{
+                        background: `linear-gradient(to right, #f97316 0%, #f97316 ${managementFeeRate * 2}%, #374151 ${managementFeeRate * 2}%, #374151 100%)`
+                      }}
+                    />
+                    <div className="flex justify-between text-sm text-orange-300/60">
+                      <span>0%</span>
+                      <span>25%</span>
+                      <span>50%</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </motion.div>
+
+            {/* User Count Card */}
+            <motion.div
+              className="group relative overflow-hidden rounded-3xl border-2 border-blue-500/20 bg-gradient-to-br from-blue-900/20 to-blue-800/30 p-8 transition-all duration-300 hover:border-blue-400/40 hover:shadow-2xl hover:shadow-blue-500/20 cursor-pointer"
+              initial={{ opacity: 0, x: 20 }}
+              whileInView={{ opacity: 1, x: 0 }}
+              transition={{ duration: 0.6, delay: 0.2 }}
+              viewport={{ once: true }}
+              whileHover={{ scale: 1.02 }}
+            >
+              <div className="absolute inset-0 bg-gradient-to-br from-blue-500/5 to-blue-600/10 opacity-0 transition-opacity duration-300 group-hover:opacity-100" />
+              
+              <div className="relative z-10">
+                <div className="flex items-center space-x-4 mb-6">
+                  <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-blue-500/20 text-3xl group-hover:scale-110 transition-transform duration-300">
+                    👥
+                  </div>
+                  <div>
+                    <h3 className="text-2xl font-bold text-white mb-2">사용자 수</h3>
+                    <p className="text-blue-200/80">플랫폼의 총 사용자 수</p>
+                  </div>
+                </div>
+                
+                <div className="space-y-6">
+                  <div className="flex items-center justify-between">
+                    <span className="text-blue-200">총 사용자</span>
+                    <span className="text-4xl font-bold text-blue-400">{userCount.toLocaleString()}명</span>
+                  </div>
+                  
+                  <div className="flex items-center space-x-3">
+                    <span className="text-sm text-blue-300 min-w-fit">사용자 수:</span>
+                    <input
+                      type="number"
+                      value={userCount}
+                      onChange={(e) => setUserCount(Math.max(1, parseInt(e.target.value) || 1))}
+                      className="flex-1 px-4 py-3 rounded-xl bg-blue-900/40 text-white text-lg font-medium border border-blue-600/30 focus:border-blue-400 focus:ring-2 focus:ring-blue-400/20 focus:outline-none transition-all duration-200"
+                      min="1"
+                      step="1"
+                      placeholder="100"
+                      style={{
+                        background: 'linear-gradient(135deg, #1e3a8a 0%, #1e40af 100%)',
+                        boxShadow: 'inset 0 2px 4px rgba(0, 0, 0, 0.3), 0 1px 0 rgba(255, 255, 255, 0.1)',
+                        color: '#ffffff'
+                      }}
+                    />
+                    <span className="text-sm text-blue-300 min-w-fit">명</span>
+                  </div>
+                </div>
+              </div>
+            </motion.div>
+          </div>
+        </div>
+      </section>
+
       {/* APR Selector */}
       <AprSelector 
         selectedApr={selectedApr}
@@ -672,6 +819,14 @@ export default function Home() {
                     </div>
                   </div>
                 )}
+                
+                {/* Management Revenue (Total Platform Revenue) */}
+                <div className="border-l border-slate-600/50 pl-8 text-center min-w-[140px]">
+                  <div className="text-xs text-slate-400 mb-2 uppercase tracking-wide">운영진 수익</div>
+                  <div className="text-2xl font-bold text-emerald-400">
+                    ${(managementRevenue * userCount).toFixed(2)}
+                  </div>
+                </div>
                 
                 <div className="flex flex-col space-y-3 ml-6">
                   <div className="flex items-center space-x-2">
