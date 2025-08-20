@@ -184,7 +184,8 @@ export class PriceSimulator {
       const daysPerSecond = getDaysPerSecond();
       const profitPerSecond = dailyProfit * daysPerSecond; // 1초당 수익
       const profitPer100ms = profitPerSecond / 10; // 100ms당 수익 (1초의 1/10)
-            
+      
+      
       // 정확한 수치 확인을 위한 로그 (시뮬레이션 시간 기준)
       if (this.state.accumulatedProfit > 0 && this.state.accumulatedProfit < 1) {
         console.log(`=== 수익 계산 상세 ===`);
@@ -425,7 +426,7 @@ export class PriceSimulator {
     this.state.price = this.demoCurrentPrice;
     this.state.schoolCenter = this.demoCurrentPrice;
     
-    this.updateProfit();
+    // updateProfit은 profitIntervalId에서만 호출 (중복 방지)
     this.notifyListeners();
   }
 
