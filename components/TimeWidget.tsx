@@ -16,6 +16,7 @@ export default function TimeWidget({ className = '', isRunning = false, timeUnit
   const [totalMinutes, setTotalMinutes] = useState(0);
   const [baseTime, setBaseTime] = useState<number | null>(null); // 시뮬레이션 시작 기준점
   const [pausedMinutes, setPausedMinutes] = useState(0); // 일시정지된 누적 시간
+  const [previousTimeUnit, setPreviousTimeUnit] = useState(timeUnit); // 이전 시간 단위 추적
 
   // 시간 단위별 분당 변환
   const getMinutesPerSecond = () => {
@@ -27,6 +28,44 @@ export default function TimeWidget({ className = '', isRunning = false, timeUnit
       default: return 10;
     }
   };
+
+  // 이전 시간 단위 기준으로 분당 변환
+  const getPreviousMinutesPerSecond = (unit: string) => {
+    switch(unit) {
+      case '10분': return 10;
+      case '1시간': return 60;
+      case '1일': return 24 * 60; // 1440분
+      case '7일': return 7 * 24 * 60; // 10080분
+      default: return 10;
+    }
+  };
+
+  // 시간 단위 변경 시 현재 시간을 보존하고 새로운 기준점 설정
+  useEffect(() => {
+    if (timeUnit !== previousTimeUnit && isRunning && baseTime !== null) {
+      console.log(`🔄 시간 단위 변경: ${previousTimeUnit} → ${timeUnit}`);
+      
+      // 현재 진행 중인 상태에서 시간 단위가 변경된 경우
+      const now = Date.now();
+      const realElapsed = now - baseTime;
+      
+      // 이전 시간 단위를 기준으로 현재까지의 시간 계산
+      const currentMinutes = Math.floor((realElapsed / 1000) * getPreviousMinutesPerSecond(previousTimeUnit));
+      
+      console.log(`📊 실제 경과: ${realElapsed/1000}초, 이전 단위(${previousTimeUnit}): ${currentMinutes}분`);
+      
+      // 현재까지의 총 시간을 pausedMinutes에 저장
+      setPausedMinutes(pausedMinutes + currentMinutes);
+      
+      // 새로운 기준점 설정 (시간 단위 변경 시점을 새로운 시작점으로)
+      setBaseTime(now);
+      
+      console.log(`✅ 보존된 시간: ${pausedMinutes + currentMinutes}분, 새로운 단위: ${timeUnit}`);
+    }
+    
+    // 이전 시간 단위 업데이트
+    setPreviousTimeUnit(timeUnit);
+  }, [timeUnit]); // timeUnit이 변경될 때만 실행
 
   useEffect(() => {
     if (!isRunning) {

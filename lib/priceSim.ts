@@ -451,6 +451,17 @@ export class PriceSimulator {
     console.log(`Set deposit: $${depositAmount}, APR: ${aprRate}%`);
   }
 
+  // 복리 재투자를 위한 메서드들
+  getDepositAmount(): number {
+    return this.depositAmount;
+  }
+
+  addToDeposit(amount: number) {
+    this.depositAmount += amount;
+    console.log(`🔄 복리 재투자: $${amount.toFixed(2)} 추가. 새로운 예치금: $${this.depositAmount.toFixed(2)}`);
+    console.log(`새로운 연간 수익 잠재력: $${(this.depositAmount * this.aprRate).toFixed(2)}`);
+  }
+
   startDemoWithSettings() {
     if (this.depositAmount > 0) {
       this.startProfitTracking();

@@ -24,13 +24,17 @@ export default function Home() {
   const [selectedApr, setSelectedApr] = useState<number>(100);
   const [isRecastDialogOpen, setIsRecastDialogOpen] = useState(false);
   const [alertsEnabled, setAlertsEnabled] = useState(false);
+  const [alertAmount, setAlertAmount] = useState(5); // 알림 금액 설정 (기본 $5)
   const [isRunning, setIsRunning] = useState(false);
   const [isDemoActive, setIsDemoActive] = useState(false);
   const [isHarvestDialogOpen, setIsHarvestDialogOpen] = useState(false);
   const [lastAlertAmount, setLastAlertAmount] = useState(0); // 마지막으로 알림을 보낸 금액
   const [autoRebalanceEnabled, setAutoRebalanceEnabled] = useState(false); // 자동 리밸런싱 설정
+  const [compoundingEnabled, setCompoundingEnabled] = useState(false); // 복리 재투자 설정
   const [isRebalanceToastOpen, setIsRebalanceToastOpen] = useState(false); // 리밸런싱 토스트 상태
   const [currentRebalanceToast, setCurrentRebalanceToast] = useState<HTMLElement | null>(null); // 현재 리밸런싱 토스트 요소
+  const [isHarvestToastOpen, setIsHarvestToastOpen] = useState(false); // 수확 알림 토스트 상태
+  const [currentHarvestToast, setCurrentHarvestToast] = useState<HTMLElement | null>(null); // 현재 수확 알림 토스트 요소
   const [hasStartedBefore, setHasStartedBefore] = useState(false); // 이전에 데모를 시작한 적이 있는지
   const [currentTimeUnit, setCurrentTimeUnit] = useState('10분'); // 현재 시간 단위
 
@@ -53,20 +57,21 @@ export default function Home() {
   }, [simulator]);
 
   useEffect(() => {
-    const currentAmount = Math.floor(simState.harvestableProfit / 5) * 5; // 5의 배수로 계산
+    const currentAmount = Math.floor(simState.harvestableProfit / alertAmount) * alertAmount; // 설정한 금액의 배수로 계산
     console.log('Alert check:', { 
       alertsEnabled, 
       harvestableProfit: simState.harvestableProfit, 
+      alertAmount,
       currentAmount, 
       lastAlertAmount 
     });
     
-    if (alertsEnabled && currentAmount >= 5 && currentAmount > lastAlertAmount) {
+    if (alertsEnabled && currentAmount >= alertAmount && currentAmount > lastAlertAmount) {
       console.log('Triggering harvest toast for amount:', currentAmount);
       setLastAlertAmount(currentAmount);
       showHarvestToast();
     }
-  }, [simState.harvestableProfit, alertsEnabled, lastAlertAmount]);
+  }, [simState.harvestableProfit, alertsEnabled, alertAmount, lastAlertAmount]);
 
   useEffect(() => {
     simulator.setAutoRebalanceEnabled(autoRebalanceEnabled);
@@ -140,7 +145,26 @@ export default function Home() {
   };
 
   const showHarvestToast = () => {
+    console.log('🔍 showHarvestToast 호출됨');
+    console.log('isHarvestToastOpen:', isHarvestToastOpen);
+    console.log('currentHarvestToast:', currentHarvestToast);
+    
+    // 기존 수확 알림 토스트가 열려있으면 즉시 제거
+    if (isHarvestToastOpen && currentHarvestToast) {
+      console.log('🗑️ 기존 토스트 즉시 제거 중...');
+      if (document.body.contains(currentHarvestToast)) {
+        document.body.removeChild(currentHarvestToast);
+        console.log('✅ 기존 토스트 DOM에서 제거됨');
+      }
+      // 상태를 즉시 리셋
+      setIsHarvestToastOpen(false);
+      setCurrentHarvestToast(null);
+    }
+    
+    console.log('🆕 새로운 토스트 생성 중...');
+    setIsHarvestToastOpen(true);
     const toast = document.createElement('div');
+    setCurrentHarvestToast(toast); // 토스트 요소를 상태에 저장
     
     // 토스트 스타일
     toast.style.cssText = `
@@ -163,8 +187,9 @@ export default function Home() {
       border: 2px solid #10b981 !important;
     `;
     
+    const currentAmount = Math.floor(simState.harvestableProfit / alertAmount) * alertAmount;
     toast.innerHTML = `
-      <div style="margin-bottom: 16px; font-size: 20px;">🎉 $5 수익 달성!</div>
+      <div style="margin-bottom: 16px; font-size: 20px;">🎉 $${currentAmount} 수익 달성!</div>
       <div style="margin-bottom: 20px;">수확하시겠습니까?</div>
       <div style="display: flex; gap: 12px; justify-content: center;">
         <button id="harvest-yes" style="
@@ -201,13 +226,22 @@ export default function Home() {
         if (document.body.contains(toast)) {
           document.body.removeChild(toast);
         }
+        setIsHarvestToastOpen(false); // 토스트 상태 리셋
+        setCurrentHarvestToast(null); // 토스트 요소 참조 리셋
       }, 300);
     };
     
     yesButton?.addEventListener('click', () => {
       const harvestAmount = simulator.harvestHarvestable();
       if (harvestAmount > 0) {
-        showToast(`☕ 수확 완료! $${harvestAmount.toFixed(2)}를 획득했습니다.`);
+        if (compoundingEnabled) {
+          // 복리 재투자: 수확한 금액을 예치금에 추가
+          const newDepositAmount = simulator.getDepositAmount() + harvestAmount;
+          simulator.addToDeposit(harvestAmount);
+          showToast(`🔄 복리 재투자! $${harvestAmount.toFixed(2)}가 예치금에 추가되었습니다. 새로운 예치금: $${newDepositAmount.toFixed(2)}`);
+        } else {
+          showToast(`☕ 수확 완료! $${harvestAmount.toFixed(2)}를 획득했습니다.`);
+        }
         setLastAlertAmount(0); // 수확 후 알림 카운터 리셋
       }
       removeToast();
@@ -325,10 +359,32 @@ export default function Home() {
   };
 
   const handleHarvest = () => {
+    console.log('🔍 handleHarvest 호출됨');
+    console.log('compoundingEnabled:', compoundingEnabled);
+    
     const harvestAmount = simulator.harvestHarvestable();
+    console.log('harvestAmount:', harvestAmount);
+    
     if (harvestAmount > 0) {
-      showToast(`☕ 수확 완료! $${harvestAmount.toFixed(2)}를 획득했습니다.`);
+      if (compoundingEnabled) {
+        console.log('🔄 복리 재투자 실행 중...');
+        // 복리 재투자: 수확한 금액을 예치금에 추가
+        const oldDepositAmount = simulator.getDepositAmount();
+        console.log('기존 예치금:', oldDepositAmount);
+        
+        simulator.addToDeposit(harvestAmount);
+        
+        const newDepositAmount = simulator.getDepositAmount();
+        console.log('새로운 예치금:', newDepositAmount);
+        
+        showToast(`🔄 복리 재투자! $${harvestAmount.toFixed(2)}가 예치금에 추가되었습니다. 새로운 예치금: $${newDepositAmount.toFixed(2)}`);
+      } else {
+        console.log('☕ 일반 수확 실행 중...');
+        showToast(`☕ 수확 완료! $${harvestAmount.toFixed(2)}를 획득했습니다.`);
+      }
       setLastAlertAmount(0); // 수확 후 알림 카운터 리셋
+    } else {
+      console.log('⚠️ 수확할 금액이 없음');
     }
   };
 
@@ -437,6 +493,26 @@ export default function Home() {
 
   return (
     <div className="min-h-screen bg-slate-900">
+      <style dangerouslySetInnerHTML={{
+        __html: `
+          .alert-amount-input::placeholder {
+            color: #94a3b8 !important;
+            opacity: 1 !important;
+          }
+          .alert-amount-input::-webkit-input-placeholder {
+            color: #94a3b8 !important;
+            opacity: 1 !important;
+          }
+          .alert-amount-input::-moz-placeholder {
+            color: #94a3b8 !important;
+            opacity: 1 !important;
+          }
+          .alert-amount-input:-ms-input-placeholder {
+            color: #94a3b8 !important;
+            opacity: 1 !important;
+          }
+        `
+      }} />
       <Header />
       
       {/* Hero Section */}
@@ -547,7 +623,7 @@ export default function Home() {
                 <div className="border-l border-slate-600/50 pl-8 text-center min-w-[120px]">
                   <div className="text-xs text-slate-400 mb-2 uppercase tracking-wide">예치금</div>
                   <div className="text-xl font-bold text-blue-400">
-                    {selectedChallenge === 'coffee' ? '$1,000' : selectedChallenge === 'meal' ? '$5,000' : '$0'}
+                    ${simulator.getDepositAmount().toFixed(2)}
                   </div>
                 </div>
                 
@@ -598,23 +674,47 @@ export default function Home() {
                 )}
                 
                 <div className="flex flex-col space-y-3 ml-6">
-                  <motion.button
-                    onClick={() => {
-                      console.log('Alert button clicked, current state:', alertsEnabled);
-                      setAlertsEnabled(!alertsEnabled);
-                    }}
-                    className="flex items-center space-x-2 px-5 py-3 rounded-xl text-sm font-medium transition-all duration-300"
-                    style={{
-                      background: alertsEnabled ? '#2563eb' : '#374151',
-                      color: 'white',
-                      boxShadow: alertsEnabled ? '0 4px 15px rgba(37, 99, 235, 0.3)' : '0 2px 8px rgba(0, 0, 0, 0.2)'
-                    }}
-                    whileHover={{ scale: 1.05 }}
-                    whileTap={{ scale: 0.95 }}
-                  >
-                    {alertsEnabled ? <Bell className="w-4 h-4" /> : <BellOff className="w-4 h-4" />}
-                    <span>$5 모이면 알림</span>
-                  </motion.button>
+                  <div className="flex items-center space-x-2">
+                    <motion.button
+                      onClick={() => {
+                        console.log('Alert button clicked, current state:', alertsEnabled);
+                        setAlertsEnabled(!alertsEnabled);
+                      }}
+                      className="flex items-center space-x-2 px-3 py-3 rounded-xl text-sm font-medium transition-all duration-300"
+                      style={{
+                        background: alertsEnabled ? '#2563eb' : '#374151',
+                        color: 'white',
+                        boxShadow: alertsEnabled ? '0 4px 15px rgba(37, 99, 235, 0.3)' : '0 2px 8px rgba(0, 0, 0, 0.2)'
+                      }}
+                      whileHover={{ scale: 1.05 }}
+                      whileTap={{ scale: 0.95 }}
+                    >
+                      {alertsEnabled ? <Bell className="w-4 h-4" /> : <BellOff className="w-4 h-4" />}
+                    </motion.button>
+                    
+                    <div className="flex items-center space-x-3">
+                      <div className="flex items-center space-x-1">
+                        <span className="text-sm font-medium text-slate-300">$</span>
+                        <input
+                          type="number"
+                          value={alertAmount}
+                          onChange={(e) => setAlertAmount(Math.max(1, parseInt(e.target.value) || 1))}
+                          className="alert-amount-input w-16 px-3 py-2 rounded-lg text-sm font-medium border border-slate-600 focus:border-blue-400 focus:ring-2 focus:ring-blue-400/20 focus:outline-none transition-all duration-200 hover:border-slate-500"
+                          min="1"
+                          step="1"
+                          placeholder="5"
+                          style={{
+                            background: 'linear-gradient(135deg, #1e293b 0%, #334155 100%)',
+                            boxShadow: 'inset 0 1px 3px rgba(0, 0, 0, 0.3), 0 1px 0 rgba(255, 255, 255, 0.1)',
+                            color: '#ffffff !important',
+                            fontSize: '14px',
+                            fontWeight: '500'
+                          }}
+                        />
+                      </div>
+                      <span className="text-sm text-slate-300 font-medium">모이면 알림</span>
+                    </div>
+                  </div>
                   
                   <motion.button
                     onClick={handleHarvest}
@@ -662,6 +762,24 @@ export default function Home() {
                       )}
                     </div>
                     <span>자동 리밸런싱</span>
+                  </motion.button>
+                  
+                  <motion.button
+                    onClick={() => {
+                      console.log('Compound reinvest button clicked, current state:', compoundingEnabled);
+                      setCompoundingEnabled(!compoundingEnabled);
+                    }}
+                    className="flex items-center space-x-2 px-5 py-3 rounded-xl text-sm font-medium transition-all duration-300"
+                    style={{
+                      background: compoundingEnabled ? '#7c3aed' : '#374151',
+                      color: 'white',
+                      boxShadow: compoundingEnabled ? '0 4px 15px rgba(124, 58, 237, 0.3)' : '0 2px 8px rgba(0, 0, 0, 0.2)'
+                    }}
+                    whileHover={{ scale: 1.05 }}
+                    whileTap={{ scale: 0.95 }}
+                  >
+                    <span className="text-xl">🔄</span>
+                    <span>수확시 재투자(복리)</span>
                   </motion.button>
                 </div>
               </div>
