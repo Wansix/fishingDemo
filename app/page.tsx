@@ -742,7 +742,7 @@ export default function Home() {
           </div>
 
           {/* Earnings Widget */}
-          <div className="mb-8 flex justify-end">
+          <div className="mb-8 flex justify-center">
             <div 
               className="backdrop-blur-sm rounded-2xl p-8 border shadow-2xl"
               style={{
@@ -867,7 +867,7 @@ export default function Home() {
                           }}
                         />
                       </div>
-                      <span className="text-sm text-slate-300 font-medium">모이면 알림</span>
+                      <span className="text-sm text-slate-300 font-medium whitespace-nowrap">모이면 알림</span>
                     </div>
                   </div>
                   
