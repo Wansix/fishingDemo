@@ -135,4 +135,4 @@ export default function HarvestDialog({ isOpen, onClose, onConfirm, onCancel }: 
       )}
     </AnimatePresence>
   );
-} 
+}
