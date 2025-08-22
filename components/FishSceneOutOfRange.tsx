@@ -12,15 +12,37 @@ interface FishSceneOutOfRangeProps {
 }
 
 const FishSVG = () => (
-  <svg width="24" height="16" viewBox="0 0 24 16" className="fill-red-400">
-    <path d="M0 8 L5 3 L15 3 L20 0 L24 8 L20 16 L15 13 L5 13 L0 8 Z" stroke="#f87171" strokeWidth="1" />
-    <circle cx="6" cy="8" r="1.5" className="fill-slate-900" />
-    <path d="M8 8 L12 8" stroke="#dc2626" strokeWidth="1" />
-  </svg>
-);
+  <svg width="32" height="20" viewBox="0 0 32 20" className="fill-cyan-400">
+    {/* Main body */}
+    <ellipse cx="16" cy="10" rx="12" ry="6" fill="#22d3ee" stroke="#0891b2" strokeWidth="1" />
 
-const SeaweedSVG = () => (
-  <svg width="8" height="40" viewBox="0 0 8 40" className="fill-green-600 opacity-60">
+    {/* Tail fin */}
+    <path d="M4 10 L0 6 L2 10 L0 14 Z" fill="#06b6d4" stroke="#0891b2" strokeWidth="1" />
+
+    {/* Top fin */}
+    <path d="M18 4 L22 2 L20 6 Z" fill="#67e8f9" stroke="#0891b2" strokeWidth="0.5" />
+
+    {/* Bottom fin */}
+    <path d="M18 16 L22 18 L20 14 Z" fill="#67e8f9" stroke="#0891b2" strokeWidth="0.5" />
+
+    {/* Side fins */}
+    <ellipse cx="12" cy="8" rx="3" ry="1.5" fill="#67e8f9" stroke="#0891b2" strokeWidth="0.5" />
+    <ellipse cx="12" cy="12" rx="3" ry="1.5" fill="#67e8f9" stroke="#0891b2" strokeWidth="0.5" />
+
+    {/* Eye */}
+    <circle cx="20" cy="8" r="2" fill="white" />
+    <circle cx="21" cy="8" r="1.2" fill="#1e293b" />
+    <circle cx="21.5" cy="7.5" r="0.4" fill="white" />
+
+    {/* Body stripes for detail */}
+    <path d="M8 7 Q16 6 24 7" stroke="#0891b2" strokeWidth="0.5" fill="none" opacity="0.6" />
+    <path d="M8 10 Q16 9 24 10" stroke="#0891b2" strokeWidth="0.5" fill="none" opacity="0.6" />
+    <path d="M8 13 Q16 12 24 13" stroke="#0891b2" strokeWidth="0.5" fill="none" opacity="0.6" />
+  </svg>
+)
+
+const SeaweedSVG = ({ height }: { height: number }) => (
+  <svg width="8" height={height} viewBox="0 0 8 40" className="fill-green-600 opacity-60">
     <path d="M4 40 Q2 35 4 30 Q6 25 4 20 Q2 15 4 10 Q6 5 4 0" stroke="currentColor" strokeWidth="2" fill="none" />
   </svg>
 );
@@ -129,49 +151,59 @@ export default function FishSceneOutOfRange({ state, onRecast, demoStatus }: Fis
   const fishXPosition = ((state.schoolCenter - minPrice) / (maxPrice - minPrice)) * 90 + 5; // 5%-95% range
 
   return (
-    <div className="bg-gradient-to-b from-slate-900 to-slate-800 min-h-[500px] relative overflow-hidden">
+    <div className="bg-gradient-to-b from-blue-900 via-blue-800 to-blue-900 min-h-[500px] relative overflow-hidden">
       {/* Background Elements */}
       <div className="absolute inset-0">
-        {/* Seaweed */}
+        {/* Enhanced seaweed with varied heights */}
         <div className="absolute bottom-0 left-10">
-          <SeaweedSVG />
+          <SeaweedSVG height={45} />
         </div>
         <div className="absolute bottom-0 left-32">
-          <SeaweedSVG />
+          <SeaweedSVG height={38} />
         </div>
         <div className="absolute bottom-0 right-20">
-          <SeaweedSVG />
+          <SeaweedSVG height={42} />
         </div>
         <div className="absolute bottom-0 right-40">
-          <SeaweedSVG />
+          <SeaweedSVG height={35} />
         </div>
-        
-        {/* Water bubbles - fewer and slower */}
-        {Array.from({ length: 4 }).map((_, i) => {
+
+        {/* Enhanced water bubbles with varied sizes */}
+        {Array.from({ length: 12 }).map((_, i) => {
           const bubblePositions = [
-            { left: 25, top: 40 },
-            { left: 60, top: 30 },
-            { left: 80, top: 50 },
-            { left: 15, top: 60 }
+            { left: 20, top: 30, size: 3 },
+            { left: 85, top: 25, size: 2 },
+            { left: 45, top: 60, size: 4 },
+            { left: 70, top: 45, size: 2.5 },
+            { left: 15, top: 70, size: 3.5 },
+            { left: 90, top: 65, size: 2 },
+            { left: 30, top: 40, size: 3 },
+            { left: 60, top: 35, size: 2.5 },
+            { left: 80, top: 50, size: 3 },
+            { left: 25, top: 55, size: 2 },
+            { left: 75, top: 30, size: 3.5 },
+            { left: 40, top: 25, size: 2.5 }
           ];
-          const position = bubblePositions[i];
+          const pos = bubblePositions[i];
           
           return (
             <motion.div
               key={i}
-              className="absolute w-2 h-2 bg-slate-400/20 rounded-full"
+              className="absolute rounded-full bg-blue-200 opacity-30"
               style={{
-                left: `${position.left}%`,
-                top: `${position.top}%`,
+                left: `${pos.left}%`,
+                top: `${pos.top}%`,
+                width: `${pos.size}px`,
+                height: `${pos.size}px`,
               }}
               animate={{
-                y: [-5, -15, -5],
-                opacity: [0.2, 0.4, 0.2],
+                y: [0, -20, 0],
+                opacity: [0.3, 0.6, 0.3],
               }}
               transition={{
-                duration: 4 + (i * 0.5),
-                repeat: Infinity,
-                delay: i * 0.5,
+                duration: 3 + Math.random() * 2,
+                repeat: Number.POSITIVE_INFINITY,
+                delay: i * 0.3,
               }}
             />
           );
@@ -223,7 +255,7 @@ export default function FishSceneOutOfRange({ state, onRecast, demoStatus }: Fis
 
       {/* School of Fish - Position based on price */}
       <motion.div
-        className="absolute flex items-center space-x-2"
+        className="absolute flex items-center space-x-1"
         style={{
           top: '45%',
           left: `${fishXPosition}%`,
@@ -237,17 +269,21 @@ export default function FishSceneOutOfRange({ state, onRecast, demoStatus }: Fis
           ease: "easeOut",
         }}
       >
-        {Array.from({ length: 6 }).map((_, i) => (
+        {Array.from({ length: 5 }).map((_, i) => (
           <motion.div
             key={i}
             animate={{
-              y: [0, -3, 0],
-              rotate: [0, -2, 0],
+              y: [0, -4, 0],
+              rotate: [0, 3, 0],
+              x: [0, Math.sin(i) * 2, 0],
             }}
             transition={{
-              duration: 2 + Math.random() * 0.5,
-              repeat: Infinity,
-              delay: i * 0.1,
+              duration: 2 + Math.random() * 0.8,
+              repeat: Number.POSITIVE_INFINITY,
+              delay: i * 0.15,
+            }}
+            style={{
+              zIndex: 6 - i, // Layering effect
             }}
           >
             <FishSVG />
