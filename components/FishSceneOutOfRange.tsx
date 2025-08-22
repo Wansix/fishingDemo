@@ -1,6 +1,6 @@
 'use client';
 
-// 임시 주석 - rodongwan 계정으로 푸시 테스트
+// 임시 주석 - rodongwan 계정으로 푸시 테스트2
 import { motion } from 'framer-motion';
 import { RotateCcw } from 'lucide-react';
 import { PriceSimState } from '@/lib/priceSim';
