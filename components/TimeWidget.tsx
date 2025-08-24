@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { motion } from 'framer-motion';
 import { Clock, FastForward, Rewind } from 'lucide-react';
 
@@ -19,7 +19,7 @@ export default function TimeWidget({ className = '', isRunning = false, timeUnit
   const [previousTimeUnit, setPreviousTimeUnit] = useState(timeUnit); // 이전 시간 단위 추적
 
   // 시간 단위별 분당 변환
-  const getMinutesPerSecond = () => {
+  const getMinutesPerSecond = useCallback(() => {
     switch(timeUnit) {
       case '10분': return 10;
       case '1시간': return 60;
@@ -27,10 +27,10 @@ export default function TimeWidget({ className = '', isRunning = false, timeUnit
       case '7일': return 7 * 24 * 60; // 10080분
       default: return 10;
     }
-  };
+  }, [timeUnit]);
 
   // 이전 시간 단위 기준으로 분당 변환
-  const getPreviousMinutesPerSecond = (unit: string) => {
+  const getPreviousMinutesPerSecond = useCallback((unit: string) => {
     switch(unit) {
       case '10분': return 10;
       case '1시간': return 60;
@@ -38,7 +38,7 @@ export default function TimeWidget({ className = '', isRunning = false, timeUnit
       case '7일': return 7 * 24 * 60; // 10080분
       default: return 10;
     }
-  };
+  }, []);
 
   // 시간 단위 변경 시 현재 시간을 보존하고 새로운 기준점 설정
   useEffect(() => {
@@ -92,10 +92,10 @@ export default function TimeWidget({ className = '', isRunning = false, timeUnit
       const currentMinutes = Math.floor((realElapsed / 1000) * getMinutesPerSecond());
       
       setTotalMinutes(pausedMinutes + currentMinutes);
-    }, 100);
+    }, 100); // 500ms → 100ms (부드러운 시간 증가를 위해 복원)
 
     return () => clearInterval(interval);
-  }, [isRunning, baseTime, pausedMinutes, timeUnit]);
+  }, [isRunning, baseTime, pausedMinutes, getMinutesPerSecond]);
 
      // 명시적 리셋이 요청될 때
   useEffect(() => {

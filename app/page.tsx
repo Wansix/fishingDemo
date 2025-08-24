@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { motion } from 'framer-motion';
 import { DollarSign, Bell, BellOff, Settings, Slash } from 'lucide-react';
 
@@ -9,9 +9,9 @@ import Footer from '@/components/Footer';
 import ChallengeCards from '@/components/ChallengeCards';
 import AprSelector from '@/components/AprSelector';
 import FishScene from '@/components/FishScene';
-import FishSceneOutOfRange from '@/components/FishSceneOutOfRange';
 import RecastDialog from '@/components/RecastDialog';
 import HarvestDialog from '@/components/HarvestDialog';
+
 import PriceControl from '@/components/PriceControl';
 import TimeWidget from '@/components/TimeWidget';
 import { PriceSimulator, PriceSimState } from '@/lib/priceSim';
@@ -20,7 +20,7 @@ import { COPY } from '@/lib/copy';
 export default function Home() {
   const [simulator] = useState(() => new PriceSimulator());
   const [simState, setSimState] = useState<PriceSimState>(simulator.getState());
-  const [selectedChallenge, setSelectedChallenge] = useState<'coffee' | 'meal' | null>(null);
+  const [selectedChallenge, setSelectedChallenge] = useState<'coffee' | 'meal' | null>('coffee');
   const [selectedApr, setSelectedApr] = useState<number>(200);
   const [isRecastDialogOpen, setIsRecastDialogOpen] = useState(false);
   const [alertsEnabled, setAlertsEnabled] = useState(false);
@@ -56,18 +56,18 @@ export default function Home() {
     return () => {
       unsubscribe();
       simulator.destroy();
+      // 토스트 정리
+      if (toastRef.current && document.body.contains(toastRef.current)) {
+        document.body.removeChild(toastRef.current);
+      }
+      if (toastTimeoutRef.current) {
+        clearTimeout(toastTimeoutRef.current);
+      }
     };
   }, [simulator]);
 
   useEffect(() => {
     const currentAmount = Math.floor(simState.harvestableProfit / alertAmount) * alertAmount; // 설정한 금액의 배수로 계산
-    console.log('Alert check:', { 
-      alertsEnabled, 
-      harvestableProfit: simState.harvestableProfit, 
-      alertAmount,
-      currentAmount, 
-      lastAlertAmount 
-    });
     
     if (alertsEnabled && currentAmount >= alertAmount && currentAmount > lastAlertAmount) {
       console.log('Triggering harvest toast for amount:', currentAmount);
@@ -105,41 +105,55 @@ export default function Home() {
     }
   }, [simState.schoolCenter, isRebalanceToastOpen, currentRebalanceToast, simulator]);
 
+  // 토스트 재사용 및 메모리 누수 방지
+  const toastRef = useRef<HTMLElement | null>(null);
+  const toastTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
   const showToast = (message: string) => {
     console.log('Showing toast:', message);
-    const toast = document.createElement('div');
     
-    // 인라인 스타일로 강제 적용 - 가운데 정렬
-    toast.style.cssText = `
-      position: fixed !important;
-      top: 50% !important;
-      left: 50% !important;
-      transform: translate(-50%, -50%) !important;
-      background: #2563eb !important;
-      color: white !important;
-      padding: 20px 32px !important;
-      border-radius: 16px !important;
-      box-shadow: 0 20px 40px rgba(0, 0, 0, 0.4) !important;
-      z-index: 99999 !important;
-      font-size: 18px !important;
-      font-weight: 600 !important;
-      min-width: 400px !important;
-      text-align: center !important;
-      opacity: 1 !important;
-      transition: all 0.3s ease !important;
-    `;
+    // 기존 토스트가 있으면 재사용
+    if (toastRef.current) {
+      // 기존 타이머 취소
+      if (toastTimeoutRef.current) {
+        clearTimeout(toastTimeoutRef.current);
+      }
+      // 내용만 업데이트
+      toastRef.current.textContent = message;
+      toastRef.current.style.opacity = '1';
+      toastRef.current.style.transform = 'translate(-50%, -50%) scale(1)';
+    } else {
+      // 새 토스트 생성
+      const toast = document.createElement('div');
+      toast.style.cssText = `
+        position: fixed !important;
+        top: 50% !important;
+        left: 50% !important;
+        transform: translate(-50%, -50%) !important;
+        background: #2563eb !important;
+        color: white !important;
+        padding: 20px 32px !important;
+        border-radius: 16px !important;
+        box-shadow: 0 20px 40px rgba(0, 0, 0, 0.4) !important;
+        z-index: 99999 !important;
+        font-size: 18px !important;
+        font-weight: 600 !important;
+        min-width: 400px !important;
+        text-align: center !important;
+        opacity: 1 !important;
+        transition: all 0.3s ease !important;
+      `;
+      toast.textContent = message;
+      document.body.appendChild(toast);
+      toastRef.current = toast;
+    }
     
-    toast.textContent = message;
-    document.body.appendChild(toast);
-    
-    setTimeout(() => {
-      toast.style.opacity = '0';
-      toast.style.transform = 'translate(-50%, -50%) scale(0.8)';
-      setTimeout(() => {
-        if (document.body.contains(toast)) {
-          document.body.removeChild(toast);
-        }
-      }, 300);
+    // 3초 후 숨기기
+    toastTimeoutRef.current = setTimeout(() => {
+      if (toastRef.current) {
+        toastRef.current.style.opacity = '0';
+        toastRef.current.style.transform = 'translate(-50%, -50%) scale(0.8)';
+      }
     }, 3000);
   };
 
@@ -493,6 +507,15 @@ export default function Home() {
 
   const handleDecrementPrice = () => {
     simulator.decrementPrice();
+  };
+
+  // 수동 제어 시작/종료 핸들러
+  const handleManualControlStart = () => {
+    simulator.startManualControl();
+  };
+
+  const handleManualControlStop = () => {
+    simulator.stopManualControl();
   };
 
   const handleStartDemoOld = () => {
@@ -942,76 +965,88 @@ export default function Home() {
           </div>
 
           {/* Fish Scene */}
-          <div className="relative">
-            <div className="rounded-2xl overflow-hidden border border-slate-700 shadow-2xl relative">
-              {/* Price Control */}
-              <PriceControl
-                onSetRange={handleSetPriceRange}
-                onResetToRandom={handleResetToRandom}
-                currentRange={simulator.getCurrentRange()}
-                onStart={handleStart}
-                onStop={handleStop}
-                isRunning={isRunning}
-                onIncrementPrice={handleIncrementPrice}
-                onDecrementPrice={handleDecrementPrice}
-                onStartDemo={handleStartDemoOld}
-                onStopDemo={handleStopDemo}
-                isDemoRunning={simulator.isDemoActive()}
-              />
-              
-              {isInRange() ? (
-                <FishScene state={simState} />
-              ) : (
-                <FishSceneOutOfRange 
-                  state={simState} 
-                  onRecast={handleRecast}
-                  demoStatus={simulator.getDemoStatus()}
-                />
-              )}
+          <div className="flex space-x-8">
+                      {/* Left Column - Price & Simulation Info */}
+          <div className="w-80 space-y-6">
+            {/* Current SOL Price */}
+            <div className="bg-slate-900 rounded-2xl p-6 border border-slate-700 shadow-xl">
+              <h3 className="text-lg font-semibold text-slate-300 mb-4">현재 SOL 가격</h3>
+              <div className="text-4xl font-bold text-blue-400 mb-2">
+                ${simState.price.toFixed(2)}
+              </div>
+              <div className="text-sm text-slate-400">
+                그물 범위: ${simulator.getNetRange().lower.toFixed(2)} ~ ${simulator.getNetRange().upper.toFixed(2)}
+              </div>
             </div>
-            
-            {/* Time Widget - Bottom Left */}
-            <div 
-              style={{ 
-                position: 'absolute', 
-                bottom: '80px', 
-                left: '16px', 
-                zIndex: 40 
-              }}
-            >
-              <TimeWidget 
-                isRunning={isDemoActive} 
-                timeUnit={currentTimeUnit}
-                onTimeUnitChange={handleTimeUnitChange}
-              />
-            </div>
-            
-            {/* X-Axis Labels - Outside container */}
-            <div className="flex justify-between px-4 mt-2">
-              {Array.from({ length: 11 }, (_, i) => {
-                const price = 100 + (i * 10);
-                const xPosition = ((price - 100) / (200 - 100)) * 90 + 5;
-                return (
-                  <div
-                    key={i}
-                    className="text-center"
-                    style={{
-                      position: 'absolute',
-                      left: `${xPosition}%`,
-                      transform: 'translateX(-50%)',
-                      color: '#e2e8f0',
-                      fontSize: '12px',
-                      fontWeight: '600',
-                      backgroundColor: 'rgba(15, 23, 42, 0.9)',
-                      padding: '4px 6px',
-                      borderRadius: '6px',
-                      border: '1px solid rgba(148, 163, 184, 0.3)'
-                    }}
-                  >
-                    ${price}
-                  </div>
-                );
-              })}
+
+            {/* Simulation Time - 실제 동작하는 TimeWidget */}
+            <TimeWidget 
+              isRunning={isDemoActive} 
+              timeUnit={currentTimeUnit}
+              onTimeUnitChange={handleTimeUnitChange}
+            />
+          </div>
+
+            {/* Right Column - Game Screen */}
+            <div className="flex-1">
+              {/* Fish Scene */}
+              <div className="relative">
+                <div className="rounded-2xl overflow-hidden border border-slate-700 shadow-2xl relative">
+                  {/* Price Control */}
+                  <PriceControl
+                    onSetRange={handleSetPriceRange}
+                    onResetToRandom={handleResetToRandom}
+                    currentRange={simulator.getCurrentRange()}
+                    onStart={handleStart}
+                    onStop={handleStop}
+                    isRunning={isRunning}
+                    onIncrementPrice={handleIncrementPrice}
+                    onDecrementPrice={handleDecrementPrice}
+                    onStartDemo={handleStartDemoOld}
+                    onStopDemo={handleStopDemo}
+                    isDemoRunning={simulator.isDemoActive()}
+                    onManualControlStart={handleManualControlStart}
+                    onManualControlStop={handleManualControlStop}
+                  />
+                  
+                  <FishScene 
+                    state={simState} 
+                    onRecast={handleRecast}
+                    demoStatus={simulator.getDemoStatus()}
+                    simulator={simulator}
+                  />
+                </div>
+                
+                
+                
+                {/* X-Axis Labels - Outside container */}
+                <div className="flex justify-between px-4 mt-2">
+                  {Array.from({ length: 11 }, (_, i) => {
+                    const price = 100 + (i * 10);
+                    const xPosition = ((price - 100) / (200 - 100)) * 90 + 5;
+                    return (
+                      <div
+                        key={i}
+                        className="text-center"
+                        style={{
+                          position: 'absolute',
+                          left: `${xPosition}%`,
+                          transform: 'translateX(-50%)',
+                          color: '#e2e8f0',
+                          fontSize: '12px',
+                          fontWeight: '600',
+                          backgroundColor: 'rgba(15, 23, 42, 0.9)',
+                          padding: '4px 6px',
+                          borderRadius: '6px',
+                          border: '1px solid rgba(148, 163, 184, 0.3)'
+                        }}
+                      >
+                        ${price}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
             </div>
           </div>
         </div>

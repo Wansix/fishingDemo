@@ -16,9 +16,11 @@ interface PriceControlProps {
   onStartDemo: () => void;
   onStopDemo: () => void;
   isDemoRunning: boolean;
+  onManualControlStart: () => void;
+  onManualControlStop: () => void;
 }
 
-export default function PriceControl({ onSetRange, onResetToRandom, currentRange, onStart, onStop, isRunning, onIncrementPrice, onDecrementPrice, onStartDemo, onStopDemo, isDemoRunning }: PriceControlProps) {
+export default function PriceControl({ onSetRange, onResetToRandom, currentRange, onStart, onStop, isRunning, onIncrementPrice, onDecrementPrice, onStartDemo, onStopDemo, isDemoRunning, onManualControlStart, onManualControlStop }: PriceControlProps) {
   const [minPrice, setMinPrice] = useState(140);
   const [maxPrice, setMaxPrice] = useState(150);
   const [isExpanded, setIsExpanded] = useState(false);
@@ -38,6 +40,9 @@ export default function PriceControl({ onSetRange, onResetToRandom, currentRange
   };
 
   const handleMouseDown = (direction: 'increment' | 'decrement') => {
+    // 수동 제어 시작 알림
+    onManualControlStart();
+
     // First click
     if (direction === 'increment') {
       onIncrementPrice();
@@ -62,6 +67,9 @@ export default function PriceControl({ onSetRange, onResetToRandom, currentRange
       clearInterval(pressInterval);
       setPressInterval(null);
     }
+    
+    // 수동 제어 종료 알림
+    onManualControlStop();
   };
 
   return (
