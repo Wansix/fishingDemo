@@ -324,7 +324,7 @@ export default function FishScene({ state, onRecast, demoStatus, simulator }: Fi
     ctx.stroke()
   }, [])
 
-  // 그물 그리기 (배에서 연결된 그물)
+  // 실제 물고기잡이 그물 그리기 (이미지 참고: 흰색 그물 + 명확한 그물망)
   const drawNet = useCallback((ctx: CanvasRenderingContext2D) => {
     // 애니메이션 중일 때는 애니메이션 상태의 위치만 사용
     let leftX: number, rightX: number, boatCenterX: number
@@ -356,78 +356,17 @@ export default function FishScene({ state, onRecast, demoStatus, simulator }: Fi
       rightX = rebalanceAnimation.currentNetPosition.right
       boatCenterX = (leftX + rightX) / 2
     }
-    
-    // 애니메이션 단계별 그물 그리기
-    if (rebalanceAnimation.isAnimating) {
-      if (rebalanceAnimation.phase === 'pulling') {
-        // 그물 거두는 중: 원래 위치에서 그물이 배 쪽으로 올라옴
-        const oldLeftX = rebalanceAnimation.oldNetPosition.left
-        const oldRightX = rebalanceAnimation.oldNetPosition.right
-        const pullProgress = rebalanceAnimation.netPullProgress
-        const netY = 200 + (80 - 200) * pullProgress // 200에서 80까지
-        const netHeight = 120 * (1 - pullProgress * 0.8) // 그물 크기 축소
-        
-        ctx.fillStyle = `rgba(139, 69, 19, ${0.6 * (1 - pullProgress * 0.5)})`
-        ctx.fillRect(oldLeftX, netY, oldRightX - oldLeftX, netHeight)
-        ctx.strokeStyle = '#F59E0B'
-        ctx.lineWidth = 2
-        ctx.strokeRect(oldLeftX, netY, oldRightX - oldLeftX, netHeight)
-        return
-      }
-      
-      if (rebalanceAnimation.phase === 'moving') {
-        // 이동 중: 그물 없음
-        return
-      }
-      
-      if (rebalanceAnimation.phase === 'deploying') {
-        // 그물 치는 중: deployProgress가 실제로 진행될 때만 그리기
-        const deployProgress = Math.max(0, Math.min(1, rebalanceAnimation.deployProgress))
-        
-        // deployProgress가 0이면 아무것도 그리지 않음 (완전히 숨김)
-        if (deployProgress <= 0) {
-          return
-        }
-        
-        leftX = rebalanceAnimation.newNetPosition.left
-        rightX = rebalanceAnimation.newNetPosition.right
-        
-        // 그물이 위에서 아래로 내려오는 애니메이션
-        const deployY = 200 - (200 * (1 - deployProgress))
-        const deployHeight = 120 * deployProgress
-        
-        ctx.fillStyle = `rgba(139, 69, 19, ${0.6 * deployProgress})`
-        ctx.fillRect(leftX, deployY, rightX - leftX, deployHeight)
-        ctx.strokeStyle = '#F59E0B'
-        ctx.lineWidth = 2
-        ctx.strokeRect(leftX, deployY, rightX - leftX, deployHeight)
-        
-        // 그물망 패턴도 점진적으로 그리기
-        if (deployProgress > 0.3) {
-          ctx.strokeStyle = `rgba(245, 158, 11, ${0.8 * deployProgress})`
-          ctx.lineWidth = 1
-          const gridSize = 15
-          for (let x = leftX; x < rightX; x += gridSize) {
-            ctx.beginPath()
-            ctx.moveTo(x, deployY)
-            ctx.lineTo(x, deployY + deployHeight)
-            ctx.stroke()
-          }
-          for (let y = deployY; y < deployY + deployHeight; y += gridSize) {
-            ctx.beginPath()
-            ctx.moveTo(leftX, y)
-            ctx.lineTo(rightX, y)
-            ctx.stroke()
-          }
-        }
-        return
-      }
-    }
-    
+
+    // 그물이 그려질 위치가 없으면 리턴
+    if (leftX === 0 && rightX === 0) return
+
     const netWidth = rightX - leftX
-    
+    const netHeight = 100
+    const netTopY = 200
+    const netBottomY = netTopY + netHeight
+
     // 배에서 그물로 연결되는 케이블/로프 (애니메이션 상태에 따라)
-    ctx.strokeStyle = '#8b5cf6'
+    ctx.strokeStyle = '#ffffff' // 하얀색으로 변경
     ctx.lineWidth = 3
     ctx.beginPath()
     
@@ -440,82 +379,116 @@ export default function FishScene({ state, onRecast, demoStatus, simulator }: Fi
         const pullProgress = rebalanceAnimation.netPullProgress
         const netY = 200 + (80 - 200) * pullProgress
         
-        ctx.moveTo(boatCenterX - 30, boatY + 20)
+        ctx.moveTo(boatCenterX - 30, boatY - 5) // 갑판 위쪽으로 이동
         ctx.lineTo(oldLeftX, netY)
-        ctx.moveTo(boatCenterX + 30, boatY + 20)
+        ctx.moveTo(boatCenterX + 30, boatY - 5) // 갑판 위쪽으로 이동
         ctx.lineTo(oldRightX, netY)
       } else if (rebalanceAnimation.phase === 'moving') {
         // 이동 중: 케이블만 배에 붙어있음 (그물 없음)
-        ctx.moveTo(boatCenterX - 30, boatY + 20)
-        ctx.lineTo(boatCenterX - 20, boatY + 30)
-        ctx.moveTo(boatCenterX + 30, boatY + 20)
-        ctx.lineTo(boatCenterX + 20, boatY + 30)
+        ctx.moveTo(boatCenterX - 30, boatY - 5) // 갑판 위쪽으로 이동
+        ctx.lineTo(boatCenterX - 30, boatY + 15) // 갑판 위쪽에서 끝남
+        ctx.moveTo(boatCenterX + 30, boatY - 5) // 갑판 위쪽으로 이동
+        ctx.lineTo(boatCenterX + 30, boatY + 15) // 갑판 위쪽에서 끝남
       } else if (rebalanceAnimation.phase === 'deploying') {
-        // 그물 치는 중: deployProgress > 0일 때만 새 위치로 케이블 연결
-        const deployProgress = rebalanceAnimation.deployProgress
-        if (deployProgress > 0) {
-          const newLeftX = rebalanceAnimation.newNetPosition.left
-          const newRightX = rebalanceAnimation.newNetPosition.right
-          const deployY = 200 - (200 * (1 - deployProgress))
-          
-          ctx.moveTo(boatCenterX - 30, boatY + 20)
-          ctx.lineTo(newLeftX, deployY)
-          ctx.moveTo(boatCenterX + 30, boatY + 20)
-          ctx.lineTo(newRightX, deployY)
+        // 배포 중: 새로운 위치로 케이블 연결 (deployProgress에 따라)
+        if (rebalanceAnimation.deployProgress > 0) {
+          const deployY = netTopY + (netBottomY - netTopY) * (1 - rebalanceAnimation.deployProgress)
+          ctx.moveTo(boatCenterX - 30, boatY - 5) // 갑판 위쪽으로 이동
+          ctx.lineTo(leftX, deployY)
+          ctx.moveTo(boatCenterX + 30, boatY - 5) // 갑판 위쪽으로 이동
+          ctx.lineTo(rightX, deployY)
         } else {
-          // deployProgress가 0이면 케이블만 배에 붙어있음
-          ctx.moveTo(boatCenterX - 30, boatY + 20)
-          ctx.lineTo(boatCenterX - 20, boatY + 30)
-          ctx.moveTo(boatCenterX + 30, boatY + 20)
-          ctx.lineTo(boatCenterX + 20, boatY + 30)
+          // deployProgress가 0이면 케이블을 배에 붙여둠
+          ctx.moveTo(boatCenterX - 30, boatY - 5) // 갑판 위쪽으로 이동
+          ctx.lineTo(boatCenterX - 30, boatY + 15) // 갑판 위쪽에서 끝남
+          ctx.moveTo(boatCenterX + 30, boatY - 5) // 갑판 위쪽으로 이동
+          ctx.lineTo(boatCenterX + 30, boatY + 15) // 갑판 위쪽에서 끝남
         }
       }
     } else {
-      // 일반 상태에서의 케이블
-      ctx.moveTo(boatCenterX - 30, boatY + 20)
-      ctx.lineTo(leftX, 200)
-      ctx.moveTo(boatCenterX + 30, boatY + 20)
-      ctx.lineTo(rightX, 200)
+      // 일반 상태: 현재 그물 위치로 케이블 연결
+      ctx.moveTo(boatCenterX - 30, boatY - 5) // 갑판 위쪽으로 이동
+      ctx.lineTo(leftX, netTopY)
+      ctx.moveTo(boatCenterX + 30, boatY - 5) // 갑판 위쪽으로 이동
+      ctx.lineTo(rightX, netTopY)
     }
     ctx.stroke()
-    
-    // 일반 상태에서만 그물 그리기 (애니메이션 중이 아닐 때)
+
+    // 그물 그리기 (애니메이션 중이 아닐 때만)
     if (!rebalanceAnimation.isAnimating) {
-      // 물속 그물 (반투명)
-      ctx.fillStyle = 'rgba(139, 69, 19, 0.6)'
-      ctx.fillRect(leftX, 200, netWidth, 120)
-      ctx.strokeStyle = '#F59E0B'
+      // 그물망 패턴 (이미지처럼 명확한 격자 - 하얀색 선, 네모칸은 투명)
+      ctx.strokeStyle = '#ffffff' // 하얀색 선
       ctx.lineWidth = 2
-      ctx.strokeRect(leftX, 200, netWidth, 120)
       
-      // 그물망 패턴 그리기
-      ctx.strokeStyle = 'rgba(245, 158, 11, 0.8)'
-      ctx.lineWidth = 1
-      const gridSize = 15
-      for (let x = leftX; x < rightX; x += gridSize) {
-        ctx.beginPath()
-        ctx.moveTo(x, 200)
-        ctx.lineTo(x, 320)
-        ctx.stroke()
-      }
-      for (let y = 200; y < 320; y += gridSize) {
+      // 가로 그물망 라인 (더 조밀하게)
+      const horizontalMeshSize = 15
+      for (let y = netTopY; y <= netBottomY; y += horizontalMeshSize) {
         ctx.beginPath()
         ctx.moveTo(leftX, y)
         ctx.lineTo(rightX, y)
         ctx.stroke()
       }
+      
+      // 세로 그물망 라인 (더 조밀하게)
+      const verticalMeshSize = 15
+      for (let x = leftX; x <= rightX; x += verticalMeshSize) {
+        ctx.beginPath()
+        ctx.moveTo(x, netTopY)
+        ctx.lineTo(x, netBottomY)
+        ctx.stroke()
+      }
+
+      // 그물 테두리 (하얀색)
+      ctx.strokeStyle = '#ffffff'
+      ctx.lineWidth = 3
+      ctx.beginPath()
+      ctx.moveTo(leftX, netTopY)
+      ctx.lineTo(rightX, netTopY)
+      ctx.lineTo(rightX, netBottomY)
+      ctx.lineTo(leftX, netBottomY)
+      ctx.closePath()
+      ctx.stroke()
+
+      // 그물 하단 추 (무게추)
+      ctx.fillStyle = '#374151'
+      ctx.beginPath()
+      ctx.arc((leftX + rightX) / 2, netBottomY + 12, 8, 0, 2 * Math.PI)
+      ctx.fill()
+      
+      // 추 테두리
+      ctx.strokeStyle = '#1f2937'
+      ctx.lineWidth = 2
+      ctx.stroke()
+
+      // 그물 하단 추 연결 로프
+      ctx.strokeStyle = '#8b5cf6'
+      ctx.lineWidth = 2
+      ctx.beginPath()
+      ctx.moveTo((leftX + rightX) / 2, netBottomY)
+      ctx.lineTo((leftX + rightX) / 2, netBottomY + 12)
+      ctx.stroke()
     }
-    
-    // 그물 라벨 (그물 아래)
-    ctx.fillStyle = '#1e293b'
-    ctx.fillRect((leftX + rightX) / 2 - 60, 330, 120, 20)
-    ctx.fillStyle = '#f59e0b'
-    ctx.font = '14px Arial'
-    ctx.textAlign = 'center'
-    ctx.fillText(`🎣 그물 ($${range.lower.toFixed(0)}-${range.upper.toFixed(0)})`, (leftX + rightX) / 2, 345)
+
+    // 그물 범위 라벨 (애니메이션 중이 아닐 때만)
+    if (!rebalanceAnimation.isAnimating) {
+      // 라벨 배경
+      ctx.fillStyle = 'rgba(139, 69, 19, 0.9)'
+      ctx.fillRect((leftX + rightX) / 2 - 60, 330, 120, 20)
+      
+      // 라벨 테두리
+      ctx.strokeStyle = '#8B4513'
+      ctx.lineWidth = 2
+      ctx.strokeRect((leftX + rightX) / 2 - 60, 330, 120, 20)
+      
+      // 라벨 텍스트
+      ctx.fillStyle = '#ffffff'
+      ctx.font = 'bold 14px Arial'
+      ctx.textAlign = 'center'
+      ctx.fillText(`🎣 그물 ($${range.lower.toFixed(0)}-${range.upper.toFixed(0)})`, (leftX + rightX) / 2, 345)
+    }
   }, [range, rebalanceAnimation])
 
-  // 어선 그리기
+  // 전형적인 물고기잡이 배 그리기 (사다리꼴 선체 - 밑변이 짧음)
   const drawFishingBoat = useCallback((ctx: CanvasRenderingContext2D) => {
     let boatCenterX
     
@@ -529,39 +502,161 @@ export default function FishScene({ state, onRecast, demoStatus, simulator }: Fi
     
     const boatY = 80 // 물 위에 위치
     
-    // 배 몸체 (하얀색 어선)
-    ctx.fillStyle = '#f8fafc'
+    // 배 그림자 (물 위 반사)
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.2)'
     ctx.beginPath()
-    ctx.ellipse(boatCenterX, boatY, 60, 20, 0, 0, 2 * Math.PI)
+    ctx.ellipse(boatCenterX, boatY + 40, 90, 15, 0, 0, 2 * Math.PI)
     ctx.fill()
     
-    // 배 테두리
-    ctx.strokeStyle = '#64748b'
+    // 배 선체 - 사다리꼴 모양 (밑변이 짧음)
+    ctx.fillStyle = '#8B4513' // 갈색 선체
+    ctx.beginPath()
+    ctx.moveTo(boatCenterX - 60, boatY + 25) // 왼쪽 아래 (짧음)
+    ctx.lineTo(boatCenterX + 60, boatY + 25) // 오른쪽 아래 (짧음)
+    ctx.lineTo(boatCenterX + 80, boatY - 5)  // 오른쪽 위 (길음)
+    ctx.lineTo(boatCenterX - 80, boatY - 5)  // 왼쪽 위 (길음)
+    ctx.closePath()
+    ctx.fill()
+    
+    // 선체 테두리
+    ctx.strokeStyle = '#654321'
+    ctx.lineWidth = 3
+    ctx.stroke()
+    
+    // 배 갑판 (사다리꼴 - 밑변이 짧음)
+    ctx.fillStyle = '#DEB887' // 나무색 갑판
+    ctx.beginPath()
+    ctx.moveTo(boatCenterX - 80, boatY - 5)  // 왼쪽 위 (길음)
+    ctx.lineTo(boatCenterX + 80, boatY - 5)  // 오른쪽 위 (길음)
+    ctx.lineTo(boatCenterX + 70, boatY - 15) // 오른쪽 안쪽 (짧음)
+    ctx.lineTo(boatCenterX - 70, boatY - 15) // 왼쪽 안쪽 (짧음)
+    ctx.closePath()
+    ctx.fill()
+    
+    // 갑판 테두리
+    ctx.strokeStyle = '#8B4513'
     ctx.lineWidth = 2
     ctx.stroke()
     
-    // 조타실 (작은 사각형)
-    ctx.fillStyle = '#e2e8f0'
-    ctx.fillRect(boatCenterX - 25, boatY - 15, 30, 15)
-    ctx.strokeStyle = '#64748b'
-    ctx.strokeRect(boatCenterX - 25, boatY - 15, 30, 15)
+    // 갑판 나무판 무늬
+    ctx.strokeStyle = '#CD853F'
+    ctx.lineWidth = 1
+    for (let i = 0; i < 10; i++) {
+      const lineX = boatCenterX - 75 + i * 15
+      ctx.beginPath()
+      ctx.moveTo(lineX, boatY - 5)
+      ctx.lineTo(lineX, boatY - 15)
+      ctx.stroke()
+    }
     
-    // 마스트 (기둥)
-    ctx.strokeStyle = '#8b5cf6'
-    ctx.lineWidth = 3
+    // 배 측면 (사다리꼴 - 밑변이 짧음)
+    ctx.fillStyle = '#F5DEB3' // 밝은 베이지색
     ctx.beginPath()
-    ctx.moveTo(boatCenterX, boatY - 15)
-    ctx.lineTo(boatCenterX, boatY - 50)
-    ctx.stroke()
-    
-    // 어선 깃발
-    ctx.fillStyle = '#ef4444'
-    ctx.beginPath()
-    ctx.moveTo(boatCenterX, boatY - 50)
-    ctx.lineTo(boatCenterX + 15, boatY - 45)
-    ctx.lineTo(boatCenterX, boatY - 40)
+    ctx.moveTo(boatCenterX - 80, boatY - 5)  // 왼쪽 위 (길음)
+    ctx.lineTo(boatCenterX - 70, boatY - 15) // 왼쪽 안쪽 (짧음)
+    ctx.lineTo(boatCenterX - 70, boatY - 25) // 왼쪽 아래 (짧음)
+    ctx.lineTo(boatCenterX - 80, boatY - 15) // 왼쪽 바깥 (길음)
     ctx.closePath()
     ctx.fill()
+    
+    // 오른쪽 측면
+    ctx.beginPath()
+    ctx.moveTo(boatCenterX + 80, boatY - 5)  // 오른쪽 위 (길음)
+    ctx.lineTo(boatCenterX + 70, boatY - 15) // 오른쪽 안쪽 (짧음)
+    ctx.lineTo(boatCenterX + 70, boatY - 25) // 오른쪽 아래 (짧음)
+    ctx.lineTo(boatCenterX + 80, boatY - 15) // 오른쪽 바깥 (길음)
+    ctx.closePath()
+    ctx.fill()
+    
+    // 측면 테두리
+    ctx.strokeStyle = '#8B4513'
+    ctx.lineWidth = 2
+    ctx.stroke()
+    
+    // 조타실 (사각형)
+    ctx.fillStyle = '#F5F5DC' // 베이지색
+    ctx.fillRect(boatCenterX - 25, boatY - 35, 50, 20)
+    ctx.strokeStyle = '#8B4513'
+    ctx.lineWidth = 2
+    ctx.strokeRect(boatCenterX - 25, boatY - 35, 50, 20)
+    
+    // 조타실 지붕 (사다리꼴 - 밑변이 짧음)
+    ctx.fillStyle = '#8B4513' // 갈색 지붕
+    ctx.beginPath()
+    ctx.moveTo(boatCenterX - 30, boatY - 35) // 왼쪽 아래 (짧음)
+    ctx.lineTo(boatCenterX + 30, boatY - 35) // 오른쪽 아래 (짧음)
+    ctx.lineTo(boatCenterX + 35, boatY - 45) // 오른쪽 위 (길음)
+    ctx.lineTo(boatCenterX - 35, boatY - 45) // 왼쪽 위 (길음)
+    ctx.closePath()
+    ctx.fill()
+    ctx.stroke()
+    
+    // 조타실 창문
+    ctx.fillStyle = '#87CEEB' // 하늘색
+    ctx.fillRect(boatCenterX - 20, boatY - 30, 40, 15)
+    ctx.strokeStyle = '#8B4513'
+    ctx.lineWidth = 1
+    ctx.strokeRect(boatCenterX - 20, boatY - 30, 40, 15)
+    
+    // 창문 프레임
+    ctx.strokeStyle = '#8B4513'
+    ctx.lineWidth = 2
+    ctx.beginPath()
+    ctx.moveTo(boatCenterX, boatY - 30)
+    ctx.lineTo(boatCenterX, boatY - 15)
+    ctx.stroke()
+    
+    // 마스트 (기둥)
+    ctx.strokeStyle = '#8B4513'
+    ctx.lineWidth = 6
+    ctx.beginPath()
+    ctx.moveTo(boatCenterX - 50, boatY - 15)
+    ctx.lineTo(boatCenterX - 50, boatY - 75)
+    ctx.stroke()
+    
+    // 마스트 크로스바 (가로 막대)
+    ctx.beginPath()
+    ctx.moveTo(boatCenterX - 65, boatY - 75)
+    ctx.lineTo(boatCenterX - 35, boatY - 75)
+    ctx.stroke()
+    
+    // 그물 걸이 (고리들)
+    ctx.strokeStyle = '#696969'
+    ctx.lineWidth = 3
+    for (let i = 0; i < 5; i++) {
+      const hookX = boatCenterX - 60 + i * 6
+      ctx.beginPath()
+      ctx.arc(hookX, boatY - 70, 2.5, 0, 2 * Math.PI)
+      ctx.stroke()
+    }
+    
+    // 어선 깃발
+    ctx.fillStyle = '#FF0000' // 빨간색
+    ctx.beginPath()
+    ctx.moveTo(boatCenterX + 50, boatY - 60)
+    ctx.lineTo(boatCenterX + 75, boatY - 55)
+    ctx.lineTo(boatCenterX + 50, boatY - 50)
+    ctx.closePath()
+    ctx.fill()
+    
+    // 깃발 테두리
+    ctx.strokeStyle = '#DC143C'
+    ctx.lineWidth = 1
+    ctx.stroke()
+    
+    // 깃발 장대
+    ctx.strokeStyle = '#8B4513'
+    ctx.lineWidth = 5
+    ctx.beginPath()
+    ctx.moveTo(boatCenterX + 50, boatY - 15)
+    ctx.lineTo(boatCenterX + 50, boatY - 60)
+    ctx.stroke()
+    
+    // 배 이름
+    ctx.fillStyle = '#8B4513'
+    ctx.font = 'bold 11px Arial'
+    ctx.textAlign = 'center'
+    ctx.fillText('FISHING BOAT', boatCenterX, boatY + 18)
     
   }, [rebalanceAnimation])
 
